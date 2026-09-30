@@ -205,6 +205,11 @@ def earnings():
 def health():
     return jsonify(status="ok")
 
+
+@app.route("/login")
+def login_page():
+    return send_from_directory(".", "login.html")
+
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000, debug=False)
