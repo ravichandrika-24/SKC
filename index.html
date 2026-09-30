@@ -1,0 +1,126 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foodie - Order Food</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f7f7f7;color:#222}
+header{background:#ff6b00;color:white;text-align:center;padding:20px}
+main{max-width:850px;margin:25px auto;padding:15px}
+.card{background:white;padding:20px;margin:15px 0;border-radius:12px;box-shadow:0 2px 8px #ddd}
+input,select,textarea,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:6px}
+button{background:#ff6b00;color:white;border:0;font-weight:bold;cursor:pointer}
+button:hover{background:#e65c00}
+</style>
+</head>
+<body>
+<header>
+<h1>🍔 Foodie</h1>
+<p>Your food, delivered to your door</p>
+<a href="/register" style="color:white">Register your restaurant</a>
+</header>
+<main>
+<section class="card">
+<h2>Restaurants</h2>
+<div id="restaurants">Loading restaurants...</div>
+</section>
+<section class="card">
+<h2>Place Your Order</h2>
+<form id="orderForm">
+<input id="customer" placeholder="Your name" required>
+<input id="phone" placeholder="Phone number" required>
+<textarea id="address" placeholder="Delivery address" required></textarea>
+<select id="restaurant" required>
+<option value="">Choose restaurant</option>
+</select>
+<select id="item" required>
+<option value="">Choose food item</option>
+</select>
+<button type="submit">Place Order</button>
+</form>
+<p id="message"></p>
+</section>
+</main>
+<script>
+let restaurants=[];
+
+async function loadRestaurants(){
+ const box=document.getElementById("restaurants");
+ const select=document.getElementById("restaurant");
+ try{
+  const res=await fetch("/api/restaurants");
+  if(!res.ok)throw Error();
+  restaurants=await res.json();
+  box.replaceChildren();
+  if(!restaurants.length){
+   box.textContent="No restaurants registered yet.";
+   return;
+  }
+  restaurants.forEach((r,i)=>{
+   const card=document.createElement("div");
+   card.className="card";
+   const name=document.createElement("h3");
+   name.textContent=r.restaurant;
+   const address=document.createElement("p");
+   address.textContent="📍 "+r.address;
+   const menu=document.createElement("p");
+   menu.textContent="Menu: "+r.menu;
+   card.append(name,address,menu);
+   box.appendChild(card);
+   const option=document.createElement("option");
+   option.value=i;
+   option.textContent=r.restaurant;
+   select.appendChild(option);
+  });
+ }catch(e){
+  box.textContent="Could not load restaurants. Check the server.";
+ }
+}
+
+document.getElementById("restaurant").addEventListener("change",function(){
+ const menu=document.getElementById("item");
+ menu.innerHTML='<option value="">Choose food item</option>';
+ const r=restaurants[this.value];
+ if(!r)return;
+ String(r.menu||"").split(",").map(x=>x.trim()).filter(Boolean).forEach(food=>{
+  const option=document.createElement("option");
+  option.value=food;
+  option.textContent=food;
+  menu.appendChild(option);
+ });
+});
+
+document.getElementById("orderForm").addEventListener("submit",async function(e){
+ e.preventDefault();
+ const message=document.getElementById("message");
+ const r=restaurants[document.getElementById("restaurant").value];
+ if(!r){message.textContent="Please choose a restaurant.";return;}
+ const data={
+  customer:document.getElementById("customer").value,
+  phone:document.getElementById("phone").value,
+  address:document.getElementById("address").value,
+  restaurant:r.restaurant,
+  items:[document.getElementById("item").value],
+  total:0
+ };
+ try{
+  const res=await fetch("/api/orders",{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify(data)
+  });
+  const result=await res.json();
+  if(!res.ok)throw Error(result.error||"Order failed");
+  message.textContent="Order placed successfully!";
+  this.reset();
+  document.getElementById("item").innerHTML='<option value="">Choose food item</option>';
+ }catch(err){
+  message.textContent="Order failed: "+err.message;
+ }
+});
+
+loadRestaurants();
+</script>
+</body>
+</html>

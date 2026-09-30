@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foodie - Restaurant Dashboard</title>
+<style>
+body{font-family:Arial;background:#f5f5f5;margin:0}
+header{background:#ff6b00;color:white;padding:20px;text-align:center}
+main{max-width:800px;margin:25px auto;padding:15px}
+.order{background:white;padding:18px;margin:15px 0;border-radius:10px}
+button{background:#ff6b00;color:white;border:0;padding:10px 15px;border-radius:6px;cursor:pointer;margin:5px}
+</style>
+</head>
+<body>
+<header><h1>Foodie Restaurant Dashboard</h1></header>
+<main>
+<h2>Incoming Orders</h2>
+<div id="orders">Loading orders...</div>
+</main>
+<script>
+async function loadOrders(){
+ const box=document.getElementById("orders");
+ try{
+  const response=await fetch("/api/orders");
+  if(!response.ok)throw Error();
+  const orders=await response.json();
+  box.replaceChildren();
+  if(!orders.length){box.textContent="No orders yet.";return;}
+  orders.forEach(order=>{
+   const card=document.createElement("div");
+   card.className="order";
+   const title=document.createElement("h3");
+   title.textContent="Order #"+order.id;
+   const items=document.createElement("p");
+   items.textContent="Items: "+order.items;
+   const status=document.createElement("p");
+   status.textContent="Status: "+order.status;
+   card.append(title,items,status);
+   ["Accepted","Preparing","Ready","Delivered"].forEach(s=>{
+    const btn=document.createElement("button");
+    btn.textContent=s;
+    btn.onclick=()=>updateStatus(order.id,s);
+    card.appendChild(btn);
+   });
+   box.appendChild(card);
+  });
+ }catch(e){box.textContent="Unable to load orders. Check the server.";}
+}
+async function updateStatus(id,status){
+ try{
+  const response=await fetch("/api/orders/"+id+"/status",{
+   method:"PATCH",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({status})
+  });
+  if(!response.ok)throw Error();
+  loadOrders();
+ }catch(e){alert("Could not update order status.");}
+}
+loadOrders();
+setInterval(loadOrders,10000);
+</script>
+</body>
+</html>
