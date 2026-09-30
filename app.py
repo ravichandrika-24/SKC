@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+﻿from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import sqlite3
 from pathlib import Path
@@ -213,3 +213,10 @@ def login_page():
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000, debug=False)
+    init_db()
+    app.run(host="0.0.0.0", port=5000, debug=False)
+
+
+
+
+
