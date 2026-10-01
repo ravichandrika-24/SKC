@@ -360,9 +360,123 @@ def user_orders(phone):
     return jsonify(result)
 
 
+
+# ---------- RIDER SYSTEM ----------
+def init_rider_system():
+    with db() as con:
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS rider_assignments(
+                order_id INTEGER PRIMARY KEY,
+                rider_phone TEXT NOT NULL
+            )
+        """)
+        con.commit()
+
+@app.route("/rider")
+def rider_page():
+    return send_from_directory(".", "rider.html")
+
+@app.route("/api/rider/orders")
+def rider_orders():
+    phone = str(request.args.get("phone", "")).strip()
+
+    if not phone:
+        return jsonify(error="Rider phone is required"), 400
+
+    with db() as con:
+        rows = con.execute("""
+            SELECT
+                o.id,
+                o.phone,
+                o.items,
+                o.total,
+                o.status,
+                ra.rider_phone
+            FROM orders o
+            LEFT JOIN rider_assignments ra ON o.id = ra.order_id
+            WHERE o.status NOT IN ('Delivered','Cancelled')
+            ORDER BY o.id DESC
+        """).fetchall()
+
+    return jsonify([dict(row) for row in rows])
+
+@app.route("/api/rider/orders/<int:order_id>/accept", methods=["PATCH"])
+def rider_accept_order(order_id):
+    data = request.get_json(silent=True) or {}
+    phone = str(data.get("phone", "")).strip()
+
+    if not phone:
+        return jsonify(error="Rider phone is required"), 400
+
+    with db() as con:
+        order = con.execute(
+            "SELECT id,status FROM orders WHERE id=?",
+            (order_id,)
+        ).fetchone()
+
+        if not order:
+            return jsonify(error="Order not found"), 404
+
+        existing = con.execute(
+            "SELECT rider_phone FROM rider_assignments WHERE order_id=?",
+            (order_id,)
+        ).fetchone()
+
+        if existing and existing["rider_phone"] != phone:
+            return jsonify(error="Order is already assigned to another rider"), 409
+
+        con.execute("""
+            INSERT OR REPLACE INTO rider_assignments(order_id,rider_phone)
+            VALUES(?,?)
+        """, (order_id, phone))
+
+        con.execute(
+            "UPDATE orders SET status=? WHERE id=?",
+            ("Out for Delivery", order_id)
+        )
+
+        con.commit()
+
+    return jsonify(message="Delivery accepted")
+
+@app.route("/api/rider/orders/<int:order_id>/status", methods=["PATCH"])
+def rider_update_status(order_id):
+    data = request.get_json(silent=True) or {}
+    phone = str(data.get("phone", "")).strip()
+    status = str(data.get("status", "")).strip()
+
+    if not phone:
+        return jsonify(error="Rider phone is required"), 400
+
+    if status not in ("Out for Delivery", "Delivered"):
+        return jsonify(error="Invalid delivery status"), 400
+
+    with db() as con:
+        assignment = con.execute(
+            "SELECT rider_phone FROM rider_assignments WHERE order_id=?",
+            (order_id,)
+        ).fetchone()
+
+        if not assignment:
+            return jsonify(error="Order is not assigned to a rider"), 400
+
+        if assignment["rider_phone"] != phone:
+            return jsonify(error="This order belongs to another rider"), 403
+
+        con.execute(
+            "UPDATE orders SET status=? WHERE id=?",
+            (status, order_id)
+        )
+        con.commit()
+
+    return jsonify(message="Delivery status updated")
+
+init_rider_system()
+
 if __name__ == "__main__":
     init_db()
     app.run(host="127.0.0.1", port=5000, debug=False)
+
 
 
 
