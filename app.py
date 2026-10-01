@@ -134,10 +134,14 @@ def admin_page():
 
 @app.route("/api/admin/orders")
 def admin_orders():
-    with db() as con:
-        rows = con.execute("SELECT id, phone, items, total, status FROM orders ORDER BY id DESC").fetchall()
-    return jsonify([dict(row) for row in rows])
+    try:
+        with db() as con:
+            rows = con.execute("SELECT * FROM orders ORDER BY id DESC").fetchall()
 
+        return jsonify([dict(row) for row in rows])
+
+    except Exception:
+        return jsonify([])
 @app.route("/api/admin/orders/<int:order_id>", methods=["PATCH"])
 def update_admin_order(order_id):
     data = request.get_json(silent=True) or {}
@@ -359,3 +363,7 @@ def user_orders(phone):
 if __name__ == "__main__":
     init_db()
     app.run(host="127.0.0.1", port=5000, debug=False)
+
+
+
+
