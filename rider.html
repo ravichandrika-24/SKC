@@ -1,127 +1,111 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SKC Rider Dashboard</title>
+<title>SKC Rider</title>
 <style>
-*{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:#fff8f5;color:#292329}
-.header{background:#3d1025;color:white;padding:22px 18px}
-.header h1{margin:0;font-size:25px}
-.header p{margin:6px 0 0;opacity:.8}
-.wrap{max-width:850px;margin:auto;padding:20px}
-.card{background:white;border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 5px 20px #3d102512}
-input,button,select{width:100%;padding:13px;border-radius:10px;border:1px solid #eee5e8;font-size:15px}
-button{background:#e21b5a;color:white;border:0;font-weight:bold;cursor:pointer;margin-top:10px}
-button.secondary{background:#3d1025}
-.order{border:1px solid #eee5e8;border-radius:15px;padding:16px;margin-top:14px}
-.row{display:flex;justify-content:space-between;gap:10px;margin:7px 0}
-.status{font-weight:bold;color:#e21b5a}
-.empty{text-align:center;padding:30px;color:#756b71}
+body{margin:0;font-family:Arial,sans-serif;background:#f8f3f0;color:#241515}
+header{background:#7b1730;color:white;padding:22px;text-align:center}
+.container{max-width:700px;margin:25px auto;padding:15px}
+.card{background:white;border-radius:18px;padding:20px;margin:15px 0;box-shadow:0 5px 20px #0001}
+input,button{width:100%;box-sizing:border-box;padding:14px;margin:7px 0;border-radius:10px;border:1px solid #ddd;font-size:16px}
+button{background:#7b1730;color:white;border:0;font-weight:bold;cursor:pointer}
+.order{border-top:1px solid #eee;padding-top:15px;margin-top:15px}
+.status{font-weight:bold;color:#7b1730}
+.small{color:#777}
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="wrap">
-    <h1>SKC Rider</h1>
-    <p>Delivery dashboard</p>
-  </div>
+<header><h1>SKC Rider</h1><div>Delivery Dashboard</div></header>
+
+<div class="container">
+<div class="card">
+<h2>Rider Login</h2>
+<input id="phone" placeholder="Rider phone number" value="9999999999">
+<button onclick="loadOrders()">View Orders</button>
 </div>
 
-<div class="wrap">
-  <div class="card">
-    <h2>Rider Login</h2>
-    <input id="phone" placeholder="Enter registered rider phone number">
-    <button onclick="loadOrders()">View Available Orders</button>
-  </div>
-
-  <div id="orders"></div>
+<div id="orders"></div>
 </div>
 
 <script>
-function esc(v){
-  return String(v ?? '').replace(/[&<>"']/g,m=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
-  }[m]));
-}
+const BASE = location.origin;
 
 async function loadOrders(){
-  const phone=document.getElementById('phone').value.trim();
-  if(!phone){alert('Enter rider phone number');return}
+    const phone=document.getElementById("phone").value.trim();
+    if(!phone){alert("Enter rider phone");return;}
 
-  const box=document.getElementById('orders');
-  box.innerHTML='<div class="card">Loading orders...</div>';
+    const box=document.getElementById("orders");
+    box.innerHTML='<div class="card">Loading orders...</div>';
 
-  try{
-    const r=await fetch('/api/rider/orders?phone='+encodeURIComponent(phone));
-    const data=await r.json();
+    try{
+        const r=await fetch(`${BASE}/api/rider/orders?phone=${encodeURIComponent(phone)}`);
+        const data=await r.json();
 
-    if(!r.ok) throw new Error(data.error||'Unable to load orders');
+        if(!Array.isArray(data) || data.length===0){
+            box.innerHTML='<div class="card"><h2>No active orders</h2><p class="small">New delivery orders will appear here.</p></div>';
+            return;
+        }
 
-    if(!data.length){
-      box.innerHTML='<div class="card empty">No delivery orders available.</div>';
-      return;
+        box.innerHTML=data.map(o=>{
+            let items=[];
+            try{items=JSON.parse(o.items||"[]")}catch(e){}
+            const itemText=items.map(i=>`${i.name} × ${i.quantity}`).join(", ");
+
+            let action="";
+            if(o.status==="Placed"){
+                action=`<button onclick="acceptOrder(${o.id})">Accept Order</button>`;
+            }else if(o.status==="Out for Delivery" && o.rider_phone===phone){
+                action=`<button onclick="deliverOrder(${o.id})">Mark Delivered</button>`;
+            }else if(o.rider_phone===phone){
+                action=`<p class="status">Assigned to you</p>`;
+            }
+
+            return `
+            <div class="card order">
+                <h2>Order #${o.id}</h2>
+                <p><b>Items:</b> ${itemText}</p>
+                <p><b>Total:</b> ₹${o.total}</p>
+                <p><b>Customer Phone:</b> ${o.phone}</p>
+                <p><b>Status:</b> <span class="status">${o.status}</span></p>
+                ${action}
+            </div>`;
+        }).join("");
+    }catch(e){
+        box.innerHTML='<div class="card"><b>Unable to load orders.</b><br>Please try again.</div>';
     }
-
-    box.innerHTML=data.map(o=>`
-      <div class="card order">
-        <div class="row"><b>Order #${esc(o.id)}</b><span class="status">${esc(o.status)}</span></div>
-        <div><b>Customer:</b> ${esc(o.phone)}</div>
-        <div><b>Items:</b> ${esc(o.items)}</div>
-        <div><b>Total:</b> ₹${Number(o.total||0).toFixed(2)}</div>
-        <div><b>Rider:</b> ${esc(o.rider_phone || 'Unassigned')}</div>
-
-        ${!o.rider_phone ? `
-          <button onclick="acceptOrder(${o.id})">Accept Delivery</button>
-        ` : o.rider_phone===phone ? `
-          <select id="s${o.id}">
-            <option>Out for Delivery</option>
-            <option>Delivered</option>
-          </select>
-          <button onclick="updateStatus(${o.id})">Update Delivery Status</button>
-        ` : `
-          <button class="secondary" disabled>Assigned to another rider</button>
-        `}
-      </div>
-    `).join('');
-  }catch(e){
-    box.innerHTML='<div class="card empty">'+esc(e.message)+'</div>';
-  }
 }
 
 async function acceptOrder(id){
-  const phone=document.getElementById('phone').value.trim();
+    const phone=document.getElementById("phone").value.trim();
 
-  const r=await fetch('/api/rider/orders/'+id+'/accept',{
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({phone})
-  });
+    const r=await fetch(`${BASE}/api/rider/orders/${id}/accept`,{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({phone})
+    });
 
-  const data=await r.json();
-
-  if(!r.ok){alert(data.error||'Unable to accept order');return}
-
-  loadOrders();
+    const data=await r.json();
+    alert(data.message || data.error || "Done");
+    loadOrders();
 }
 
-async function updateStatus(id){
-  const phone=document.getElementById('phone').value.trim();
-  const status=document.getElementById('s'+id).value;
+async function deliverOrder(id){
+    const phone=document.getElementById("phone").value.trim();
 
-  const r=await fetch('/api/rider/orders/'+id+'/status',{
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({phone,status})
-  });
+    const r=await fetch(`${BASE}/api/rider/orders/${id}/status`,{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({phone,status:"Delivered"})
+    });
 
-  const data=await r.json();
-
-  if(!r.ok){alert(data.error||'Unable to update status');return}
-
-  loadOrders();
+    const data=await r.json();
+    alert(data.message || data.error || "Done");
+    loadOrders();
 }
+
+loadOrders();
 </script>
 </body>
 </html>
