@@ -384,14 +384,7 @@ def rider_test():
         return jsonify(status="OK", database="OK")
     except Exception as e:
         return jsonify(status="ERROR", error=str(e), error_type=type(e).__name__), 500
-@app.route("/api/rider/test")
-def rider_test():
-    try:
-        with db() as con:
-            con.execute("SELECT 1").fetchone()
-        return jsonify(status="OK", database="OK")
-    except Exception as e:
-        return jsonify(status="ERROR", error=str(e), error_type=type(e).__name__), 500
+
 @app.route("/api/rider/orders")
 def rider_orders():
     phone = str(request.args.get("phone", "")).strip()
@@ -492,6 +485,7 @@ init_rider_system()
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)
+
 
 
 
