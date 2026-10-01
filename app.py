@@ -376,6 +376,22 @@ def init_rider_system():
 def rider_page():
     return send_from_directory(".", "rider.html")
 
+@app.route("/api/rider/test")
+def rider_test():
+    try:
+        with db() as con:
+            con.execute("SELECT 1").fetchone()
+        return jsonify(status="OK", database="OK")
+    except Exception as e:
+        return jsonify(status="ERROR", error=str(e), error_type=type(e).__name__), 500
+@app.route("/api/rider/test")
+def rider_test():
+    try:
+        with db() as con:
+            con.execute("SELECT 1").fetchone()
+        return jsonify(status="OK", database="OK")
+    except Exception as e:
+        return jsonify(status="ERROR", error=str(e), error_type=type(e).__name__), 500
 @app.route("/api/rider/orders")
 def rider_orders():
     phone = str(request.args.get("phone", "")).strip()
@@ -471,11 +487,18 @@ def rider_update_status(order_id):
 
     return jsonify(message="Delivery status updated")
 
+init_db()
 init_rider_system()
 
 if __name__ == "__main__":
-    init_db()
     app.run(host="127.0.0.1", port=5000, debug=False)
+
+
+
+
+
+
+
 
 
 
