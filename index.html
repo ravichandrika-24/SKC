@@ -1,149 +1,62 @@
-let restaurants = [];
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SKC Food Ordering System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 
-async function loadRestaurants() {
-    const box = document.getElementById("restaurants");
-    const select = document.getElementById("restaurant");
+<body>
 
-    try {
-        const res = await fetch("/api/restaurants");
+    <h1>🍔 SKC Food Ordering System</h1>
+    <p>Your food, delivered to your door</p>
 
-        if (!res.ok) {
-            throw new Error("Failed to load restaurants");
-        }
+    <a href="register.html">Register</a>
+    <a href="login.html">Login</a>
 
-        restaurants = await res.json();
+    <h2>Restaurants</h2>
 
-        box.innerHTML = "";
-        select.innerHTML = '<option value="">Choose restaurant</option>';
+    <div id="restaurants"></div>
 
-        restaurants.forEach((r, index) => {
+    <h2>Place Your Order</h2>
 
-            // Restaurant card
-            const card = document.createElement("div");
-            card.className = "card";
+    <form id="orderForm">
 
-            const name = document.createElement("h3");
-            name.textContent = "🍴 " + r.name;
+        <input
+            type="text"
+            id="customer"
+            placeholder="Your Name"
+            required
+        >
 
-            const location = document.createElement("p");
-            location.textContent = "📍 " + r.location;
+        <input
+            type="text"
+            id="phone"
+            placeholder="10-digit Phone"
+            required
+        >
 
-            const menuTitle = document.createElement("strong");
-            menuTitle.textContent = "Menu";
+        <input
+            type="text"
+            id="address"
+            placeholder="Delivery Address"
+            required
+        >
 
-            const menu = document.createElement("ul");
+        <select id="restaurant" required>
+            <option value="">Choose restaurant</option>
+        </select>
 
-            r.menu.forEach(item => {
-                const li = document.createElement("li");
-                li.textContent = item.name + " - ₹" + item.price;
-                menu.appendChild(li);
-            });
+        <select id="item" required>
+            <option value="">Choose food item</option>
+        </select>
 
-            card.append(name, location, menuTitle, menu);
-            box.appendChild(card);
+        <button type="submit">Place Order</button>
 
-            // Restaurant dropdown
-            const option = document.createElement("option");
-            option.value = index;
-            option.textContent = r.name;
-            select.appendChild(option);
-        });
+    </form>
 
-    } catch (error) {
-        console.error(error);
-        box.textContent = "Could not load restaurants.";
-    }
-}
+    <p id="message"></p>
 
-document.getElementById("restaurant").addEventListener("change", function () {
+    <script src="script.js"></script>
 
-    const menu = document.getElementById("item");
-
-    menu.innerHTML = '<option value="">Choose food item</option>';
-
-    const restaurant = restaurants[this.value];
-
-    if (!restaurant) return;
-
-    restaurant.menu.forEach(item => {
-
-        const option = document.createElement("option");
-
-        option.value = item.name;
-        option.textContent = item.name + " - ₹" + item.price;
-
-        menu.appendChild(option);
-    });
-});
-
-document.getElementById("orderForm").addEventListener("submit", async function(e) {
-
-    e.preventDefault();
-
-    const message = document.getElementById("message");
-
-    const restaurant = restaurants[
-        document.getElementById("restaurant").value
-    ];
-
-    const foodName = document.getElementById("item").value;
-
-    if (!restaurant || !foodName) {
-        message.textContent = "Please choose a restaurant and food item.";
-        return;
-    }
-
-    const food = restaurant.menu.find(
-        item => item.name === foodName
-    );
-
-    const data = {
-        customer: document.getElementById("customer").value.trim(),
-        phone: document.getElementById("phone").value.trim(),
-        address: document.getElementById("address").value.trim(),
-
-        restaurant_id: restaurant.id,
-
-        items: [
-            {
-                name: food.name,
-                price: food.price,
-                quantity: 1
-            }
-        ],
-
-        payment_method: "COD"
-    };
-
-    try {
-
-        const res = await fetch("/api/order", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(data)
-        });
-
-        const result = await res.json();
-
-        if (!res.ok) {
-            throw new Error(result.error || "Order failed");
-        }
-
-        message.textContent =
-            "✅ Order placed successfully! Order #" + result.order_id;
-
-        this.reset();
-
-        document.getElementById("item").innerHTML =
-            '<option value="">Choose food item</option>';
-
-    } catch (error) {
-
-        message.textContent =
-            "❌ Order failed: " + error.message;
-    }
-});
-
-loadRestaurants();
+</body>
+</html>
