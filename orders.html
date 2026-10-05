@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SKC - My Orders</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h1>📦 My Orders</h1>
+
+<input
+    id="phone"
+    type="text"
+    placeholder="Enter your phone number"
+>
+
+<button onclick="loadOrders()">View Orders</button>
+
+<div id="orders"></div>
+
+<script>
+async function loadOrders() {
+
+    const phone = document.getElementById("phone").value.trim();
+    const box = document.getElementById("orders");
+
+    if (!phone) {
+        box.innerHTML = "<p>Please enter your phone number.</p>";
+        return;
+    }
+
+    box.innerHTML = "<p>Loading...</p>";
+
+    try {
+
+        const response = await fetch("/api/orders/" + phone);
+
+        const orders = await response.json();
+
+        if (!response.ok) {
+            throw new Error("Unable to load orders");
+        }
+
+        if (orders.length === 0) {
+            box.innerHTML = "<p>No orders found.</p>";
+            return;
+        }
+
+        box.innerHTML = "";
+
+        orders.forEach(order => {
+
+            const div = document.createElement("div");
+
+            div.className = "card";
+
+            let items = "";
+
+            order.items.forEach(item => {
+                items += `
+                    <li>
+                        ${item.name} × ${item.quantity}
+                        - ₹${item.price}
+                    </li>
+                `;
+            });
+
+            div.innerHTML = `
+                <h2>Order #${order.id}</h2>
+
+                <p><b>Status:</b> ${order.status}</p>
+
+                <p><b>Customer:</b> ${order.customer}</p>
+
+                <p><b>Address:</b> ${order.address}</p>
+
+                <h3>Items</h3>
+
+                <ul>
+                    ${items}
+                </ul>
+
+                <h3>Total: ₹${order.total}</h3>
+
+                <p>
+                    <b>Payment:</b>
+                    ${order.payment_method}
+                </p>
+            `;
+
+            box.appendChild(div);
+        });
+
+    } catch (error) {
+
+        box.innerHTML =
+            "<p>❌ Could not load orders.</p>";
+    }
+}
+</script>
+
+</body>
+</html>
