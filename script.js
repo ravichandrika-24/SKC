@@ -5,13 +5,13 @@ async function loadRestaurants() {
     const select = document.getElementById("restaurant");
 
     try {
-        const res = await fetch("/api/restaurants");
+        const response = await fetch("/api/restaurants");
 
-        if (!res.ok) {
+        if (!response.ok) {
             throw new Error("Failed to load restaurants");
         }
 
-        restaurants = await res.json();
+        restaurants = await response.json();
 
         if (box) {
             box.innerHTML = "";
@@ -22,31 +22,43 @@ async function loadRestaurants() {
                 '<option value="">Choose restaurant</option>';
         }
 
-        restaurants.forEach((r, index) => {
+        restaurants.forEach((restaurant, index) => {
 
             if (box) {
+
                 const card = document.createElement("div");
                 card.className = "card";
 
-                const name = document.createElement("h3");
-                name.textContent = "🍴 " + r.name;
+                const title = document.createElement("h3");
+                title.textContent =
+                    "🍴 " + restaurant.name;
 
                 const location = document.createElement("p");
-                location.textContent = "📍 " + r.location;
+                location.textContent =
+                    "📍 " + restaurant.location;
 
-                const menuTitle = document.createElement("strong");
+                const menuTitle =
+                    document.createElement("strong");
+
                 menuTitle.textContent = "Menu";
 
-                const menu = document.createElement("ul");
+                const menu =
+                    document.createElement("ul");
 
-                r.menu.forEach(item => {
-                    const li = document.createElement("li");
+                restaurant.menu.forEach(item => {
+
+                    const li =
+                        document.createElement("li");
+
                     li.textContent =
-                        item.name + " - ₹" + item.price;
+                        item.name +
+                        " - ₹" +
+                        item.price;
+
                     menu.appendChild(li);
                 });
 
-                card.appendChild(name);
+                card.appendChild(title);
                 card.appendChild(location);
                 card.appendChild(menuTitle);
                 card.appendChild(menu);
@@ -55,19 +67,25 @@ async function loadRestaurants() {
             }
 
             if (select) {
-                const option = document.createElement("option");
+
+                const option =
+                    document.createElement("option");
+
                 option.value = index;
-                option.textContent = r.name;
+                option.textContent =
+                    restaurant.name;
+
                 select.appendChild(option);
             }
         });
 
     } catch (error) {
-        console.error(error);
+
+        console.error("Restaurant error:", error);
 
         if (box) {
-            box.textContent =
-                "Could not load restaurants.";
+            box.innerHTML =
+                "<p>Unable to load restaurants.</p>";
         }
     }
 }
@@ -82,12 +100,12 @@ if (restaurantSelect) {
         "change",
         function () {
 
-            const menu =
+            const itemSelect =
                 document.getElementById("item");
 
-            if (!menu) return;
+            if (!itemSelect) return;
 
-            menu.innerHTML =
+            itemSelect.innerHTML =
                 '<option value="">Choose food item</option>';
 
             const restaurant =
@@ -103,9 +121,11 @@ if (restaurantSelect) {
                 option.value = item.name;
 
                 option.textContent =
-                    item.name + " - ₹" + item.price;
+                    item.name +
+                    " - ₹" +
+                    item.price;
 
-                menu.appendChild(option);
+                itemSelect.appendChild(option);
             });
         }
     );
@@ -119,22 +139,26 @@ if (orderForm) {
 
     orderForm.addEventListener(
         "submit",
-        async function (e) {
+        async function (event) {
 
-            e.preventDefault();
+            event.preventDefault();
+
+            const restaurantSelect =
+                document.getElementById("restaurant");
+
+            const itemSelect =
+                document.getElementById("item");
 
             const message =
                 document.getElementById("message");
 
             const restaurant =
                 restaurants[
-                    document.getElementById(
-                        "restaurant"
-                    ).value
+                    restaurantSelect.value
                 ];
 
             const foodName =
-                document.getElementById("item").value;
+                itemSelect.value;
 
             if (!restaurant || !foodName) {
 
@@ -154,19 +178,13 @@ if (orderForm) {
             const data = {
 
                 customer:
-                    document.getElementById(
-                        "customer"
-                    ).value.trim(),
+                    document.getElementById("customer").value.trim(),
 
                 phone:
-                    document.getElementById(
-                        "phone"
-                    ).value.trim(),
+                    document.getElementById("phone").value.trim(),
 
                 address:
-                    document.getElementById(
-                        "address"
-                    ).value.trim(),
+                    document.getElementById("address").value.trim(),
 
                 restaurant_id:
                     restaurant.id,
@@ -182,10 +200,9 @@ if (orderForm) {
                 payment_method: "COD"
             };
 
-
             try {
 
-                const res =
+                const response =
                     await fetch(
                         "/api/order",
                         {
@@ -201,19 +218,16 @@ if (orderForm) {
                         }
                     );
 
-
                 const result =
-                    await res.json();
+                    await response.json();
 
-
-                if (!res.ok) {
+                if (!response.ok) {
 
                     throw new Error(
                         result.error ||
                         "Order failed"
                     );
                 }
-
 
                 if (message) {
 
@@ -222,23 +236,17 @@ if (orderForm) {
                         result.order_id;
                 }
 
-
                 orderForm.reset();
 
-
-                const itemSelect =
-                    document.getElementById("item");
-
-                if (itemSelect) {
-
-                    itemSelect.innerHTML =
-                        '<option value="">Choose food item</option>';
-                }
-
+                itemSelect.innerHTML =
+                    '<option value="">Choose food item</option>';
 
             } catch (error) {
 
-                console.error(error);
+                console.error(
+                    "Order error:",
+                    error
+                );
 
                 if (message) {
 
