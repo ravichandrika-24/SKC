@@ -7,56 +7,37 @@
 
 <body>
 
-    <h1>🍔 SKC Food Ordering System</h1>
-    <p>Your food, delivered to your door</p>
+<h1>🍔 SKC Food Ordering System</h1>
+<p>Your food, delivered to your door</p>
 
-    <a href="register.html">Register</a>
-    <a href="login.html">Login</a>
+<h2>Restaurants</h2>
+<div id="restaurants"></div>
 
-    <h2>Restaurants</h2>
+<h2>Place Your Order</h2>
 
-    <div id="restaurants"></div>
+<form id="orderForm">
 
-    <h2>Place Your Order</h2>
+    <input id="customer" type="text" placeholder="Your Name" required>
 
-    <form id="orderForm">
+    <input id="phone" type="text" placeholder="10-digit Phone" required>
 
-        <input
-            type="text"
-            id="customer"
-            placeholder="Your Name"
-            required
-        >
+    <input id="address" type="text" placeholder="Delivery Address" required>
 
-        <input
-            type="text"
-            id="phone"
-            placeholder="10-digit Phone"
-            required
-        >
+    <select id="restaurant" required>
+        <option value="">Choose restaurant</option>
+    </select>
 
-        <input
-            type="text"
-            id="address"
-            placeholder="Delivery Address"
-            required
-        >
+    <select id="item" required>
+        <option value="">Choose food item</option>
+    </select>
 
-        <select id="restaurant" required>
-            <option value="">Choose restaurant</option>
-        </select>
+    <button type="submit">Place Order</button>
 
-        <select id="item" required>
-            <option value="">Choose food item</option>
-        </select>
+</form>
 
-        <button type="submit">Place Order</button>
+<p id="message"></p>
 
-    </form>
-
-    <p id="message"></p>
-
-    <script src="script.js"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
