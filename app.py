@@ -1,18 +1,69 @@
-﻿from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import json
 import os
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(BASE_DIR, "orders.db")
+DB = os.path.join(BASE_DIR, "skc.db")
 
-# Restaurant listings are examples.
-# Confirm participation and menus before accepting real orders.
+
+# ---------------- DATABASE ----------------
+
+def get_db():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            phone TEXT UNIQUE,
+            password TEXT
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer TEXT,
+            phone TEXT,
+            address TEXT,
+            restaurant_id INTEGER,
+            items TEXT,
+            total REAL,
+            payment_method TEXT,
+            status TEXT DEFAULT 'Placed'
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS rider_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER,
+            rider_name TEXT,
+            status TEXT DEFAULT 'Assigned'
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
+
+# ---------------- RESTAURANTS ----------------
+
 RESTAURANTS = [
     {
         "id": 1,
@@ -44,64 +95,7 @@ RESTAURANTS = [
 ]
 
 
-def db():
-    con = sqlite3.connect(DB)
-    con.row_factory = sqlite3.Row
-    return con
-
-
-def init_db():
-    with db() as con:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                phone TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                role TEXT DEFAULT 'customer'
-            )
-        """)
-
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                customer TEXT,
-                phone TEXT,
-                address TEXT,
-                restaurant TEXT,
-                items TEXT,
-                total REAL,
-                payment_method TEXT DEFAULT 'COD',
-                payment_status TEXT DEFAULT 'Pending',
-                status TEXT DEFAULT 'Placed'
-            )
-        """)
-
-        columns = {
-            row["name"]
-            for row in con.execute("PRAGMA table_info(orders)")
-        }
-
-        additions = {
-            "customer": "TEXT",
-            "phone": "TEXT",
-            "address": "TEXT",
-            "restaurant": "TEXT",
-            "items": "TEXT",
-            "total": "REAL",
-            "payment_method": "TEXT DEFAULT 'COD'",
-            "payment_status": "TEXT DEFAULT 'Pending'",
-            "status": "TEXT DEFAULT 'Placed'"
-        }
-
-        for name, definition in additions.items():
-            if name not in columns:
-                con.execute(
-                    f"ALTER TABLE orders ADD COLUMN {name} {definition}"
-                )
-
-        con.commit()
-
+# ---------------- PAGES ----------------
 
 @app.route("/")
 def home():
@@ -109,7 +103,8 @@ def home():
 
 
 @app.route("/<path:filename>")
-def pages(filename):
+def static_pages(filename):
+
     allowed = {
         "index.html",
         "style.css",
@@ -119,47 +114,28 @@ def pages(filename):
         "restaurant-detail.html",
         "checkout.html",
         "orders.html",
-        "order_success.html"
+        "order_success.html",
+        "admin.html",
+        "rider.html"
     }
 
-    if filename not in allowed:
-        return jsonify(error="Page not found"), 404
+    if filename in allowed:
+        return send_from_directory(BASE_DIR, filename)
 
-    return send_from_directory(BASE_DIR, filename)
+    return "Page not found", 404
 
 
 @app.route("/admin")
-def admin_page():
-    return send_from_directory(".", "admin.html")
+def admin():
+    return send_from_directory(BASE_DIR, "admin.html")
 
-@app.route("/api/admin/orders")
-def admin_orders():
-    try:
-        with db() as con:
-            rows = con.execute("SELECT * FROM orders ORDER BY id DESC").fetchall()
 
-        return jsonify([dict(row) for row in rows])
+@app.route("/rider")
+def rider():
+    return send_from_directory(BASE_DIR, "rider.html")
 
-    except Exception:
-        return jsonify([])
-@app.route("/api/admin/orders/<int:order_id>", methods=["PATCH"])
-def update_admin_order(order_id):
-    data = request.get_json(silent=True) or {}
-    status = str(data.get("status", "")).strip()
-    allowed = {"Placed","Preparing","Ready","Out for Delivery","Delivered","Cancelled"}
-    if status not in allowed:
-        return jsonify(error="Invalid status"), 400
-    with db() as con:
-        cur = con.execute("UPDATE orders SET status=? WHERE id=?", (status, order_id))
-        con.commit()
-    if cur.rowcount == 0:
-        return jsonify(error="Order not found"), 404
-    return jsonify(message="Order status updated")
 
-@app.route("/health")
-def health():
-    return jsonify(status="ok")
-
+# ---------------- RESTAURANTS API ----------------
 
 @app.route("/api/restaurants")
 def restaurants():
@@ -167,101 +143,7 @@ def restaurants():
 
 
 @app.route("/api/restaurants/<int:restaurant_id>")
-def restaurant_detail(restaurant_id):
-    for restaurant in RESTAURANTS:
-        if restaurant["id"] == restaurant_id:
-            return jsonify(restaurant)
-
-    return jsonify(error="Restaurant not found"), 404
-
-
-@app.route("/api/register", methods=["POST"])
-def register():
-    data = request.get_json(silent=True) or {}
-
-    name = str(data.get("name", "")).strip()
-    phone = str(data.get("phone", "")).strip()
-    password = str(data.get("password", ""))
-
-    if not name or not phone or len(password) < 8:
-        return jsonify(
-            error="Enter your name, phone, and a password of at least 8 characters"
-        ), 400
-
-    if not phone.isdigit() or len(phone) != 10:
-        return jsonify(error="Enter a valid 10-digit phone number"), 400
-
-    try:
-        with db() as con:
-            con.execute(
-                """
-                INSERT INTO users(name, phone, password, role)
-                VALUES (?, ?, ?, 'customer')
-                """,
-                (name, phone, generate_password_hash(password))
-            )
-            con.commit()
-
-        return jsonify(message="Account created"), 201
-
-    except sqlite3.IntegrityError:
-        return jsonify(error="Phone number already registered"), 409
-
-
-@app.route("/api/login", methods=["POST"])
-def login():
-    data = request.get_json(silent=True) or {}
-    phone = str(data.get("phone", "")).strip()
-    password = str(data.get("password", ""))
-
-    with db() as con:
-        user = con.execute(
-            "SELECT * FROM users WHERE phone = ?",
-            (phone,)
-        ).fetchone()
-
-    if not user or not check_password_hash(user["password"], password):
-        return jsonify(error="Invalid phone number or password"), 401
-
-    return jsonify(
-        message="Login successful",
-        user={
-            "id": user["id"],
-            "name": user["name"],
-            "phone": user["phone"],
-            "role": user["role"]
-        }
-    )
-
-
-@app.route("/api/order", methods=["POST"])
-def create_order():
-    data = request.get_json(silent=True) or {}
-
-    customer = str(data.get("customer", "")).strip()
-    phone = str(data.get("phone", "")).strip()
-    address = str(data.get("address", "")).strip()
-    restaurant_id = data.get("restaurant_id")
-    items = data.get("items", [])
-    payment_method = str(
-        data.get("payment_method", "COD")
-    ).upper()
-
-    if not customer or not phone or not address:
-        return jsonify(
-            error="Customer name, phone, and address are required"
-        ), 400
-
-    if not phone.isdigit() or len(phone) != 10:
-        return jsonify(error="Enter a valid 10-digit phone number"), 400
-
-    if payment_method != "COD":
-        return jsonify(
-            error="Only cash on delivery is currently available"
-        ), 400
-
-    if not isinstance(items, list) or not items:
-        return jsonify(error="Your cart is empty"), 400
+def restaurant_details(restaurant_id):
 
     restaurant = next(
         (r for r in RESTAURANTS if r["id"] == restaurant_id),
@@ -269,235 +151,344 @@ def create_order():
     )
 
     if not restaurant:
-        return jsonify(error="Restaurant not found"), 404
+        return jsonify({"error": "Restaurant not found"}), 404
 
-    menu = {
-        item["name"].lower(): item["price"]
-        for item in restaurant["menu"]
-    }
+    return jsonify(restaurant)
+
+
+# ---------------- REGISTER ----------------
+
+@app.route("/api/register", methods=["POST"])
+def register():
+
+    data = request.get_json()
+
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    password = data.get("password", "")
+
+    if not name or not phone or not password:
+        return jsonify({"error": "All fields are required"}), 400
+
+    conn = get_db()
+
+    existing = conn.execute(
+        "SELECT id FROM users WHERE phone=?",
+        (phone,)
+    ).fetchone()
+
+    if existing:
+        conn.close()
+        return jsonify({"error": "User already exists"}), 400
+
+    hashed = generate_password_hash(password)
+
+    conn.execute(
+        "INSERT INTO users (name, phone, password) VALUES (?, ?, ?)",
+        (name, phone, hashed)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "message": "Registration successful"
+    })
+
+
+# ---------------- LOGIN ----------------
+
+@app.route("/api/login", methods=["POST"])
+def login():
+
+    data = request.get_json()
+
+    phone = data.get("phone", "").strip()
+    password = data.get("password", "")
+
+    conn = get_db()
+
+    user = conn.execute(
+        "SELECT * FROM users WHERE phone=?",
+        (phone,)
+    ).fetchone()
+
+    conn.close()
+
+    if not user:
+        return jsonify({"error": "Invalid phone or password"}), 401
+
+    if not check_password_hash(user["password"], password):
+        return jsonify({"error": "Invalid phone or password"}), 401
+
+    return jsonify({
+        "message": "Login successful",
+        "user": {
+            "id": user["id"],
+            "name": user["name"],
+            "phone": user["phone"]
+        }
+    })
+
+
+# ---------------- PLACE ORDER ----------------
+
+@app.route("/api/order", methods=["POST"])
+def place_order():
+
+    data = request.get_json()
+
+    customer = data.get("customer", "").strip()
+    phone = data.get("phone", "").strip()
+    address = data.get("address", "").strip()
+    restaurant_id = data.get("restaurant_id")
+    items = data.get("items", [])
+    payment_method = data.get("payment_method", "COD")
+
+    if not customer or not phone or not address:
+        return jsonify({
+            "error": "Customer, phone and address are required"
+        }), 400
+
+    if not items:
+        return jsonify({
+            "error": "Please select a food item"
+        }), 400
 
     total = 0
-    validated_items = []
 
     for item in items:
-        if not isinstance(item, dict):
-            return jsonify(error="Invalid food item"), 400
+        price = float(item.get("price", 0))
+        quantity = int(item.get("quantity", 1))
+        total += price * quantity
 
-        name = str(item.get("name", "")).strip().lower()
+    conn = get_db()
 
-        try:
-            quantity = int(item.get("quantity", 0))
-        except (ValueError, TypeError):
-            return jsonify(error="Invalid quantity"), 400
+    cursor = conn.execute("""
+        INSERT INTO orders
+        (customer, phone, address, restaurant_id, items, total, payment_method, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        customer,
+        phone,
+        address,
+        restaurant_id,
+        json.dumps(items),
+        total,
+        payment_method,
+        "Placed"
+    ))
 
-        if name not in menu or quantity < 1 or quantity > 20:
-            return jsonify(error="Invalid item or quantity"), 400
+    order_id = cursor.lastrowid
 
-        price = menu[name]
-        subtotal = price * quantity
-        total += subtotal
+    conn.commit()
+    conn.close()
 
-        validated_items.append({
-            "name": name.title(),
-            "price": price,
-            "quantity": quantity,
-            "subtotal": subtotal
-        })
+    return jsonify({
+        "message": "Order placed successfully",
+        "order_id": order_id,
+        "total": total
+    })
 
-    with db() as con:
-        cur = con.execute(
-            """
-            INSERT INTO orders (
-                customer, phone, address, restaurant,
-                items, total, payment_method,
-                payment_status, status
-            )
-            VALUES (?, ?, ?, ?, ?, ?, 'COD', 'Pending', 'Placed')
-            """,
-            (
-                customer,
-                phone,
-                address,
-                restaurant["name"],
-                json.dumps(validated_items),
-                total
-            )
-        )
-        con.commit()
-        order_id = cur.lastrowid
 
-    return jsonify(
-        message="Order placed successfully",
-        order_id=order_id,
-        restaurant=restaurant["name"],
-        total=total,
-        payment_method="COD",
-        status="Placed"
-    ), 201
-
+# ---------------- CUSTOMER ORDER HISTORY ----------------
 
 @app.route("/api/orders/<phone>")
-def user_orders(phone):
-    with db() as con:
-        rows = con.execute(
-            """
-            SELECT * FROM orders
-            WHERE phone = ?
-            ORDER BY id DESC
-            """,
-            (phone,)
-        ).fetchall()
+def customer_orders(phone):
+
+    conn = get_db()
+
+    orders = conn.execute("""
+        SELECT *
+        FROM orders
+        WHERE phone=?
+        ORDER BY id DESC
+    """, (phone,)).fetchall()
+
+    conn.close()
 
     result = []
-    for row in rows:
-        order = dict(row)
-        try:
-            order["items"] = json.loads(order["items"] or "[]")
-        except (ValueError, TypeError):
-            order["items"] = []
-        result.append(order)
+
+    for order in orders:
+
+        result.append({
+            "id": order["id"],
+            "customer": order["customer"],
+            "phone": order["phone"],
+            "address": order["address"],
+            "restaurant_id": order["restaurant_id"],
+            "items": json.loads(order["items"]),
+            "total": order["total"],
+            "payment_method": order["payment_method"],
+            "status": order["status"]
+        })
 
     return jsonify(result)
 
 
+# ---------------- ADMIN ORDERS ----------------
 
-# ---------- RIDER SYSTEM ----------
-def init_rider_system():
-    with db() as con:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS rider_assignments(
-                order_id INTEGER PRIMARY KEY,
-                rider_phone TEXT NOT NULL
-            )
-        """)
-        con.commit()
+@app.route("/api/admin/orders")
+def admin_orders():
 
-@app.route("/rider")
-def rider_page():
-    return send_from_directory(".", "rider.html")
+    conn = get_db()
 
-@app.route("/api/rider/test")
-def rider_test():
-    try:
-        with db() as con:
-            con.execute("SELECT 1").fetchone()
-        return jsonify(status="OK", database="OK")
-    except Exception as e:
-        return jsonify(status="ERROR", error=str(e), error_type=type(e).__name__), 500
+    orders = conn.execute("""
+        SELECT *
+        FROM orders
+        ORDER BY id DESC
+    """).fetchall()
+
+    conn.close()
+
+    result = []
+
+    for order in orders:
+
+        result.append({
+            "id": order["id"],
+            "customer": order["customer"],
+            "phone": order["phone"],
+            "address": order["address"],
+            "restaurant_id": order["restaurant_id"],
+            "items": json.loads(order["items"]),
+            "total": order["total"],
+            "payment_method": order["payment_method"],
+            "status": order["status"]
+        })
+
+    return jsonify(result)
+
+
+# ---------------- ADMIN STATUS ----------------
+
+@app.route("/api/admin/orders/<int:order_id>", methods=["PATCH"])
+def update_order(order_id):
+
+    data = request.get_json()
+    status = data.get("status")
+
+    allowed_statuses = [
+        "Placed",
+        "Preparing",
+        "Ready",
+        "Out for Delivery",
+        "Delivered",
+        "Cancelled"
+    ]
+
+    if status not in allowed_statuses:
+        return jsonify({"error": "Invalid status"}), 400
+
+    conn = get_db()
+
+    cursor = conn.execute(
+        "UPDATE orders SET status=? WHERE id=?",
+        (status, order_id)
+    )
+
+    conn.commit()
+
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({"error": "Order not found"}), 404
+
+    conn.close()
+
+    return jsonify({
+        "message": "Order status updated",
+        "status": status
+    })
+
+
+# ---------------- RIDER ----------------
 
 @app.route("/api/rider/orders")
 def rider_orders():
-    phone = str(request.args.get("phone", "")).strip()
 
-    if not phone:
-        return jsonify(error="Rider phone is required"), 400
+    conn = get_db()
 
-    with db() as con:
-        rows = con.execute("""
-            SELECT
-                o.id,
-                o.phone,
-                o.items,
-                o.total,
-                o.status,
-                ra.rider_phone
-            FROM orders o
-            LEFT JOIN rider_assignments ra ON o.id = ra.order_id
-            WHERE o.status NOT IN ('Delivered','Cancelled')
-            ORDER BY o.id DESC
-        """).fetchall()
+    orders = conn.execute("""
+        SELECT *
+        FROM orders
+        WHERE status IN ('Ready', 'Out for Delivery')
+        ORDER BY id DESC
+    """).fetchall()
 
-    return jsonify([dict(row) for row in rows])
+    conn.close()
 
-@app.route("/api/rider/orders/<int:order_id>/accept", methods=["PATCH"])
-def rider_accept_order(order_id):
-    data = request.get_json(silent=True) or {}
-    phone = str(data.get("phone", "")).strip()
+    result = []
 
-    if not phone:
-        return jsonify(error="Rider phone is required"), 400
+    for order in orders:
 
-    with db() as con:
-        order = con.execute(
-            "SELECT id,status FROM orders WHERE id=?",
-            (order_id,)
-        ).fetchone()
+        result.append({
+            "id": order["id"],
+            "customer": order["customer"],
+            "phone": order["phone"],
+            "address": order["address"],
+            "items": json.loads(order["items"]),
+            "total": order["total"],
+            "status": order["status"]
+        })
 
-        if not order:
-            return jsonify(error="Order not found"), 404
+    return jsonify(result)
 
-        existing = con.execute(
-            "SELECT rider_phone FROM rider_assignments WHERE order_id=?",
-            (order_id,)
-        ).fetchone()
 
-        if existing and existing["rider_phone"] != phone:
-            return jsonify(error="Order is already assigned to another rider"), 409
+@app.route("/api/rider/orders/<int:order_id>/accept", methods=["POST"])
+def rider_accept(order_id):
 
-        con.execute("""
-            INSERT OR REPLACE INTO rider_assignments(order_id,rider_phone)
-            VALUES(?,?)
-        """, (order_id, phone))
+    conn = get_db()
 
-        con.execute(
-            "UPDATE orders SET status=? WHERE id=?",
-            ("Out for Delivery", order_id)
-        )
+    conn.execute(
+        "UPDATE orders SET status=? WHERE id=?",
+        ("Out for Delivery", order_id)
+    )
 
-        con.commit()
+    conn.commit()
+    conn.close()
 
-    return jsonify(message="Delivery accepted")
+    return jsonify({
+        "message": "Order accepted"
+    })
+
 
 @app.route("/api/rider/orders/<int:order_id>/status", methods=["PATCH"])
-def rider_update_status(order_id):
-    data = request.get_json(silent=True) or {}
-    phone = str(data.get("phone", "")).strip()
-    status = str(data.get("status", "")).strip()
+def rider_status(order_id):
 
-    if not phone:
-        return jsonify(error="Rider phone is required"), 400
+    data = request.get_json()
+    status = data.get("status")
 
-    if status not in ("Out for Delivery", "Delivered"):
-        return jsonify(error="Invalid delivery status"), 400
+    if status not in ["Out for Delivery", "Delivered"]:
+        return jsonify({"error": "Invalid rider status"}), 400
 
-    with db() as con:
-        assignment = con.execute(
-            "SELECT rider_phone FROM rider_assignments WHERE order_id=?",
-            (order_id,)
-        ).fetchone()
+    conn = get_db()
 
-        if not assignment:
-            return jsonify(error="Order is not assigned to a rider"), 400
+    conn.execute(
+        "UPDATE orders SET status=? WHERE id=?",
+        (status, order_id)
+    )
 
-        if assignment["rider_phone"] != phone:
-            return jsonify(error="This order belongs to another rider"), 403
+    conn.commit()
+    conn.close()
 
-        con.execute(
-            "UPDATE orders SET status=? WHERE id=?",
-            (status, order_id)
-        )
-        con.commit()
+    return jsonify({
+        "message": "Rider status updated",
+        "status": status
+    })
 
-    return jsonify(message="Delivery status updated")
 
-init_db()
-init_rider_system()
+# ---------------- HEALTH ----------------
+
+@app.route("/health")
+def health():
+    return jsonify({
+        "status": "OK",
+        "application": "SKC Food Ordering System"
+    })
+
+
+# ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
