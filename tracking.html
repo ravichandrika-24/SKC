@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SKC Order Tracking</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h1>🚚 Track Your Order</h1>
+
+<div class="card">
+
+    <input id="phone"
+           type="text"
+           placeholder="Enter your phone number">
+
+    <button onclick="trackOrder()">
+        Track Order
+    </button>
+
+    <div id="result"></div>
+
+</div>
+
+<script>
+
+async function trackOrder() {
+
+    const phone =
+        document.getElementById("phone").value.trim();
+
+    const result =
+        document.getElementById("result");
+
+    if (!phone) {
+        result.innerHTML =
+            "<p>Please enter your phone number.</p>";
+        return;
+    }
+
+    try {
+
+        const response =
+            await fetch("/api/orders/" + phone);
+
+        const orders =
+            await response.json();
+
+        if (!orders.length) {
+            result.innerHTML =
+                "<p>No orders found.</p>";
+            return;
+        }
+
+        const order = orders[0];
+
+        result.innerHTML = `
+            <h2>Order #${order.id}</h2>
+
+            <h3>Current Status</h3>
+
+            <h2>📍 ${order.status}</h2>
+
+            <hr>
+
+            <p>🟢 Placed</p>
+            <p>🟡 Preparing</p>
+            <p>🟠 Ready</p>
+            <p>🔵 Out for Delivery</p>
+            <p>✅ Delivered</p>
+
+            <h3>Total: ₹${order.total}</h3>
+        `;
+
+    } catch (error) {
+
+        result.innerHTML =
+            "<p>Unable to track order.</p>";
+    }
+}
+
+</script>
+
+</body>
+</html>
