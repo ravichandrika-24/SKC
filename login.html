@@ -1,96 +1,82 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKC Login</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #fff8f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .login-box {
-            width: 90%;
-            max-width: 400px;
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 10px 35px rgba(0,0,0,.12);
-        }
-        h1 {
-            text-align: center;
-            color: #6a1235;
-        }
-        input, button {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 14px;
-            margin-top: 12px;
-            border-radius: 10px;
-            border: 1px solid #ddd;
-        }
-        button {
-            background: #d81b60;
-            color: white;
-            border: 0;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        #message {
-            text-align: center;
-            margin-top: 15px;
-        }
-    </style>
+    <title>SKC Food Ordering System</title>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-    <div class="login-box">
-        <h1>SKC</h1>
-        <p>Login to SKC Home Food & Local Market</p>
 
-        <form id="loginForm">
-            <input id="phone" type="tel" placeholder="Phone number" required>
-            <input id="password" type="password" placeholder="Password" required>
-            <button type="submit">Login</button>
-        </form>
+<h1>🍔 SKC Food Ordering System</h1>
 
-        <div id="message"></div>
-    </div>
+<p>Your food, delivered to your door</p>
 
-    <script>
-        document.getElementById("loginForm").addEventListener("submit", async function(e) {
-            e.preventDefault();
+<div style="text-align:center; margin:20px;">
 
-            const message = document.getElementById("message");
+    <a href="register.html">
+        <button style="width:200px;">Register</button>
+    </a>
 
-            try {
-                const response = await fetch("/api/login", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        phone: document.getElementById("phone").value,
-                        password: document.getElementById("password").value
-                    })
-                });
+    <a href="login.html">
+        <button style="width:200px;">Login</button>
+    </a>
 
-                const data = await response.json();
+    <a href="orders.html">
+        <button style="width:200px;">📦 My Orders</button>
+    </a>
 
-                if (response.ok) {
-                    message.textContent = "Login successful!";
-                    message.style.color = "green";
-                } else {
-                    message.textContent = data.error || "Login failed";
-                    message.style.color = "red";
-                }
-            } catch (error) {
-                message.textContent = "Server connection failed.";
-                message.style.color = "red";
-            }
-        });
-    </script>
+    <a href="tracking.html">
+        <button style="width:200px;">🚚 Track Order</button>
+    </a>
+
+</div>
+
+<h2>🍴 Restaurants</h2>
+
+<div id="restaurants"></div>
+
+<h2>🛒 Place Your Order</h2>
+
+<form id="orderForm">
+
+    <input
+        id="customer"
+        type="text"
+        placeholder="Your Name"
+        required
+    >
+
+    <input
+        id="phone"
+        type="text"
+        placeholder="10-digit Phone"
+        required
+    >
+
+    <input
+        id="address"
+        type="text"
+        placeholder="Delivery Address"
+        required
+    >
+
+    <select id="restaurant" required>
+        <option value="">Choose restaurant</option>
+    </select>
+
+    <select id="item" required>
+        <option value="">Choose food item</option>
+    </select>
+
+    <button type="submit">
+        🛒 Place Order
+    </button>
+
+</form>
+
+<p id="message"></p>
+
+<script src="script.js"></script>
+
 </body>
 </html>
